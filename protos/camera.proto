@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package camera;
 
-import "aruco.proto";
 
 service CameraService {
     rpc GetArucosPosition (GetArucosPositionRequest) returns (GetArucosPositionResponse);
@@ -11,5 +10,13 @@ service CameraService {
 message GetArucosPositionRequest {}
 
 message GetArucosPositionResponse {
-    repeated aruco.ArucoPosition arucos = 1;
+    repeated ArucoPosition arucos = 1;
+}
+
+message ArucoPosition {
+    int32 id = 1;
+    float x = 2;
+    float y = 3;
+    float rot = 4;
+    float size = 5;
 }

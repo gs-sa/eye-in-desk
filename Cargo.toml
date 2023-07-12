@@ -8,7 +8,7 @@ edition = "2021"
 [workspace]
 
 members = [
-    # "camera",
+    "camera",
     "projector_server",
     "sim_server",
 ]
