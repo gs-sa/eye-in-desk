@@ -14,3 +14,18 @@ members = [
 ]
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }
+tonic = "0.9"
+prost = "0.11"
+rand = "0.8"
+# csv = "1.2.2"
+# serde = { version = "1", features = ["derive"] }
+nalgebra = "0.32.2"
+anyhow= "1.0.71"
+projector_server = { path = "./projector_server" }
+sim_server = {path = "./sim_server"}
+camera = {path = "./camera"}
+wry = "0.28.3"
+
+[build-dependencies]
+tonic-build = "0.9"

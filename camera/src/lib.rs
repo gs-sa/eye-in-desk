@@ -198,30 +198,33 @@ impl CameraService for CameraServ {
     }
 }
 
-pub fn run_camera_service(port: u16) {
+pub async fn run_camera_service(port: u16) {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let arc_arucos = Arc::new(RwLock::new(vec![]));
 
     let cam = CameraServ {
         arucos: arc_arucos.clone(),
     };
-
-    tokio::spawn(async move {
+    
+    let job1 = async move {
         let service = CameraServiceServer::new(cam);
         Server::builder()
             .add_service(service)
             .serve(addr)
             .await
             .unwrap();
-    });
+    };
 
-    tokio::spawn(async move {
+    let job2 = async move {
         let mut cam = CvCamera::new(0);
         cam.debug(false);
         for arucos in cam.iter() {
             *arc_arucos.write().await = from_corners_to_position(arucos);
         }
-    });
+    };
+
+    let jobs = futures::future::join(job1, job2);
+    jobs.await;
 }
 
 fn from_corners_to_position(arucos: Vec<Aruco>) -> Vec<ArucoPosition> {

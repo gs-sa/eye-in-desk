@@ -6,3 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tonic = "0.9"
+prost = "0.11"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+clap = { version = "4.3.0", features = ["derive"] }
+axum = { version = "0.6", features = ["ws"] }
+axum-extra = { version = "0.7"}
+futures = "0.3"
+tower-http = { version = "0.4", features = ["fs"] }
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+wry = "0.28.3"
+
+[build-dependencies]
+tonic-build = "0.9"

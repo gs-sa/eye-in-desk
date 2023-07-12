@@ -21,6 +21,7 @@ window.onresize = () => {
 const ws = new WebSocket("ws://localhost:8001/DrawWs");
 
 ws.onmessage = (ev: MessageEvent<string>) => {
+  // let id = ev.origin + ev.ports;
   process_data(ev.data);
 }
 
