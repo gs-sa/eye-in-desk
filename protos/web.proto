@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package web;
+
+service WebService {
+    rpc ShowObjects (ShowObjectsRequest) returns (WebResponse);
+    rpc UpdateRobot (UpdateRobotRequest) returns (WebResponse);
+}
+
+message ShowObjectsRequest {
+    repeated Object objects = 1;
+}
+
+message UpdateRobotRequest {
+    repeated double robot = 1;
+}
+
+message Object {
+    int32 id = 1;
+    float x = 2;
+    float y = 3;
+    float z = 4;
+    float rot = 5;
+}
+
+message WebResponse {
+    bool success = 1;
+}

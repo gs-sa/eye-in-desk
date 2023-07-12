@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package camera;
+
+import "aruco.proto";
+
+service CameraService {
+    rpc GetArucosPosition (GetArucosPositionRequest) returns (GetArucosPositionResponse);
+}
+
+message GetArucosPositionRequest {}
+
+message GetArucosPositionResponse {
+    repeated aruco.ArucoPosition arucos = 1;
+}
