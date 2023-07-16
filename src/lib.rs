@@ -1,8 +1,9 @@
-
-use camera_rpc::{ArucoPosition, camera_service_client::CameraServiceClient, GetArucosPositionRequest};
+use camera_rpc::{
+    camera_service_client::CameraServiceClient, ArucoPosition, GetArucosPositionRequest,
+};
 use projector_rpc::{
-    projector_service_client::ProjectorServiceClient, DrawArucosRequest,
-    DrawCirclesRequest, DrawRequest, DrawTextsRequest, GetDrawableSizeRequest,
+    projector_service_client::ProjectorServiceClient, DrawArucosRequest, DrawCirclesRequest,
+    DrawRequest, DrawTextsRequest, GetDrawableSizeRequest,
 };
 use tonic::{codegen::StdError, transport::Channel, Status};
 use web_rpc::{
@@ -22,24 +23,24 @@ mod projector_rpc {
 }
 
 use anyhow::Ok;
+use camera::run_camera_service;
 use projector_server::run_projector_back_end;
 use sim_server::run_sim_back_end;
-use camera::run_camera_service;
 use tokio::process::Command;
-use wry::{
-    application::{
-        event::{Event, StartCause, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
-    },
-    webview::WebViewBuilder,
-};
+// use wry::{
+//     application::{
+//         event::{Event, StartCause, WindowEvent},
+//         event_loop::{ControlFlow, EventLoop},
+//         window::WindowBuilder,
+//     },
+//     webview::WebViewBuilder,
+// };
 
-pub use projector_rpc::{Aruco, Circle, Text};
+use projector_rpc::{Aruco, Circle, Text};
 
-pub static PROJ_PORT: u16 = 50051;
-pub static SIM_PORT: u16 = 50052;
-pub static CAM_PORT: u16 = 50053;
+static PROJ_PORT: u16 = 50051;
+static SIM_PORT: u16 = 50052;
+static CAM_PORT: u16 = 50053;
 
 pub struct EyeInDesk {
     cam_client: CameraServiceClient<Channel>,
@@ -61,7 +62,8 @@ impl EyeInDesk {
         A: TryInto<tonic::transport::Endpoint>,
         A::Error: Into<StdError>,
     {
-        let cam_client: CameraServiceClient<Channel> = CameraServiceClient::connect(cam_addr).await.unwrap();
+        let cam_client: CameraServiceClient<Channel> =
+            CameraServiceClient::connect(cam_addr).await.unwrap();
         let proj_client = ProjectorServiceClient::connect(proj_addr).await.unwrap();
         let sim_client = WebServiceClient::connect(sim_addr).await.unwrap();
 
@@ -199,24 +201,21 @@ async fn eye_in_desk_update_virtaul_robot() {
     eid.update_virtual_robot(&joints).await.unwrap();
 }
 
-
-
 static PROJ_FILE_PORT: u16 = 8002;
 static SIM_FILE_PORT: u16 = 8003;
 
-
-pub async fn main() -> anyhow::Result<()> {
+pub async fn run_services() {
     // run front end servers
-    run_front_end_server(PROJ_FILE_PORT, "../projector").await?;
-    run_front_end_server(SIM_FILE_PORT, "../sim").await?;
+    run_front_end_server(PROJ_FILE_PORT, "../projector").await.unwrap();
+    run_front_end_server(SIM_FILE_PORT, "../sim").await.unwrap();
     // run grpc server
-    run_projector_back_end(PROJ_PORT).await?;
-    run_sim_back_end(SIM_PORT).await;
-    run_camera_service(CAM_PORT).await;
+    // run_projector_back_end(PROJ_PORT).await;
+    // run_sim_back_end(SIM_PORT).await;
+    // run_camera_service(CAM_PORT).await;
+    tokio::join!(run_projector_back_end(PROJ_PORT), run_sim_back_end(SIM_PORT), run_camera_service(CAM_PORT));
     // run windows loop
     // sleep(Duration::from_secs(2)).await;
-    run_windows()?;
-    Ok(())
+    // run_windows()?;
 }
 
 async fn run_front_end_server(static_file_port: u16, dir: &str) -> anyhow::Result<()> {
@@ -228,39 +227,39 @@ async fn run_front_end_server(static_file_port: u16, dir: &str) -> anyhow::Resul
     Ok(())
 }
 
-fn run_windows() -> anyhow::Result<()> {
-    let event_loop = EventLoop::new();
-    // build_window(&event_loop, "Projector", PROJ_FILE_PORT)?;
-    // build_window(&event_loop, "Simulation", SIM_FILE_PORT)?;
-    let proj_window = WindowBuilder::new()
-        .with_title("Projector")
-        .build(&event_loop)
-        .unwrap();
+// fn run_windows() -> anyhow::Result<()> {
+//     let event_loop = EventLoop::new();
+//     // build_window(&event_loop, "Projector", PROJ_FILE_PORT)?;
+//     // build_window(&event_loop, "Simulation", SIM_FILE_PORT)?;
+//     let proj_window = WindowBuilder::new()
+//         .with_title("Projector")
+//         .build(&event_loop)
+//         .unwrap();
 
-    let _webview = WebViewBuilder::new(proj_window)
-        .unwrap()
-        .with_url(&format!("http://localhost:{}/", PROJ_FILE_PORT))?
-        .build()?;
+//     let _webview = WebViewBuilder::new(proj_window)
+//         .unwrap()
+//         .with_url(&format!("http://localhost:{}/", PROJ_FILE_PORT))?
+//         .build()?;
 
-    let sim_window = WindowBuilder::new()
-        .with_title("Simulation")
-        .build(&event_loop)
-        .unwrap();
+//     let sim_window = WindowBuilder::new()
+//         .with_title("Simulation")
+//         .build(&event_loop)
+//         .unwrap();
 
-    let _webview = WebViewBuilder::new(sim_window)
-        .unwrap()
-        .with_url(&format!("http://localhost:{}/", SIM_FILE_PORT))?
-        .build()?;
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+//     let _webview = WebViewBuilder::new(sim_window)
+//         .unwrap()
+//         .with_url(&format!("http://localhost:{}/", SIM_FILE_PORT))?
+//         .build()?;
+//     event_loop.run(move |event, _, control_flow| {
+//         *control_flow = ControlFlow::Wait;
 
-        match event {
-            Event::NewEvents(StartCause::Init) => println!("Wry has started!"),
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            _ => {}
-        }
-    });
-}
+//         match event {
+//             Event::NewEvents(StartCause::Init) => println!("Wry has started!"),
+//             Event::WindowEvent {
+//                 event: WindowEvent::CloseRequested,
+//                 ..
+//             } => *control_flow = ControlFlow::Exit,
+//             _ => {}
+//         }
+//     });
+// }
