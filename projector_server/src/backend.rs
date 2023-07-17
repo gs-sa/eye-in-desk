@@ -79,7 +79,6 @@ pub async fn run_ws_server(
             command_result_sender,
         )));
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    println!("projector server start:{}", addr);
     Server::bind(&addr)
         .serve(router.into_make_service())
         .await

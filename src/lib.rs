@@ -1,8 +1,11 @@
+use std::time::Duration;
 
-use camera_rpc::{ArucoPosition, camera_service_client::CameraServiceClient, GetArucosPositionRequest};
+use camera_rpc::{
+    camera_service_client::CameraServiceClient, ArucoPosition, GetArucosPositionRequest,
+};
 use projector_rpc::{
-    projector_service_client::ProjectorServiceClient, DrawArucosRequest,
-    DrawCirclesRequest, DrawRequest, DrawTextsRequest, GetDrawableSizeRequest,
+    projector_service_client::ProjectorServiceClient, DrawArucosRequest, DrawCirclesRequest,
+    DrawRequest, DrawTextsRequest, GetDrawableSizeRequest,
 };
 use tonic::{codegen::StdError, transport::Channel, Status};
 use web_rpc::{
@@ -22,10 +25,10 @@ mod projector_rpc {
 }
 
 use anyhow::Ok;
+use camera::run_camera_service;
 use projector_server::run_projector_back_end;
 use sim_server::run_sim_back_end;
-use camera::run_camera_service;
-use tokio::process::Command;
+use tokio::{process::Command, time::sleep};
 use wry::{
     application::{
         event::{Event, StartCause, WindowEvent},
@@ -35,11 +38,10 @@ use wry::{
     webview::WebViewBuilder,
 };
 
-pub use projector_rpc::{Aruco, Circle, Text};
-
-pub static PROJ_PORT: u16 = 50051;
-pub static SIM_PORT: u16 = 50052;
-pub static CAM_PORT: u16 = 50053;
+use projector_rpc::{Aruco, Circle, Text};
+static PROJ_PORT: u16 = 50051;
+static SIM_PORT: u16 = 50052;
+static CAM_PORT: u16 = 50053;
 
 pub struct EyeInDesk {
     cam_client: CameraServiceClient<Channel>,
@@ -61,7 +63,8 @@ impl EyeInDesk {
         A: TryInto<tonic::transport::Endpoint>,
         A::Error: Into<StdError>,
     {
-        let cam_client: CameraServiceClient<Channel> = CameraServiceClient::connect(cam_addr).await.unwrap();
+        let cam_client: CameraServiceClient<Channel> =
+            CameraServiceClient::connect(cam_addr).await.unwrap();
         let proj_client = ProjectorServiceClient::connect(proj_addr).await.unwrap();
         let sim_client = WebServiceClient::connect(sim_addr).await.unwrap();
 
@@ -199,22 +202,32 @@ async fn eye_in_desk_update_virtaul_robot() {
     eid.update_virtual_robot(&joints).await.unwrap();
 }
 
-
-
 static PROJ_FILE_PORT: u16 = 8002;
 static SIM_FILE_PORT: u16 = 8003;
 
-
-pub async fn main() -> anyhow::Result<()> {
+pub async fn run() -> anyhow::Result<()> {
     // run front end servers
-    run_front_end_server(PROJ_FILE_PORT, "../projector").await?;
-    run_front_end_server(SIM_FILE_PORT, "../sim").await?;
+    println!("running front end servers");
+
+    tokio::spawn(run_front_end_server(PROJ_FILE_PORT, "./projector"));
+    tokio::spawn(run_front_end_server(SIM_FILE_PORT, "./sim"));
+
     // run grpc server
-    run_projector_back_end(PROJ_PORT).await?;
-    run_sim_back_end(SIM_PORT).await;
-    run_camera_service(CAM_PORT).await;
+    // run_projector_back_end(PROJ_PORT).await;
+    // run_sim_back_end(SIM_PORT).await;
+    // run_camera_service(CAM_PORT).await;
+
+    println!("running grpc servers");
+    // tokio::join!(
+    //     run_projector_back_end(PROJ_PORT),
+    //     run_sim_back_end(SIM_PORT),
+    //     run_camera_service(CAM_PORT)
+    // );
+    tokio::spawn(run_projector_back_end(PROJ_PORT));
+    tokio::spawn(run_sim_back_end(SIM_PORT));
+    tokio::spawn(run_camera_service(CAM_PORT));
     // run windows loop
-    // sleep(Duration::from_secs(2)).await;
+    sleep(Duration::from_secs(2)).await;
     run_windows()?;
     Ok(())
 }

@@ -1,23 +1,23 @@
-// use opencv::{
-//     core::{no_array, Mat, Point2f, Scalar, Vector},
-//     highgui,
-//     objdetect::{
-//         draw_detected_markers, get_predefined_dictionary_i32, ArucoDetector, DetectorParameters,
-//         RefineParameters, DICT_4X4_100,
-//     },
-//     prelude::{ArucoDetectorTraitConst, DetectorParametersTrait},
-//     videoio::{
-//         VideoCapture, VideoCaptureTrait, CAP_ANY, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT,
-//         CAP_PROP_FRAME_WIDTH,
-//     },
-//     Result,
-// };
+use opencv::{
+    core::{no_array, Mat, Point2f, Scalar, Vector},
+    highgui,
+    objdetect::{
+        draw_detected_markers, get_predefined_dictionary_i32, ArucoDetector, DetectorParameters,
+        RefineParameters, DICT_4X4_100,
+    },
+    prelude::{ArucoDetectorTraitConst, DetectorParametersTrait},
+    videoio::{
+        VideoCapture, VideoCaptureTrait, CAP_ANY, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT,
+        CAP_PROP_FRAME_WIDTH,
+    },
+    Result,
+};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use camera::camera_service_server::{CameraService, CameraServiceServer};
-use camera::{GetArucosPositionRequest, GetArucosPositionResponse, ArucoPosition};
+use camera::{ArucoPosition, GetArucosPositionRequest, GetArucosPositionResponse};
 
 use tokio::sync::RwLock;
 use tonic::transport::Server;
@@ -29,20 +29,14 @@ pub mod camera {
 
 pub trait Camera {
     type Aruco;
-    type CameraIter: Iterator<Item = Vec<Aruco>>;
+    type CameraIter<'a>: Iterator<Item = Vec<Aruco>>
+    where
+        Self: 'a;
     fn new(index: i32) -> Self;
     fn debug(&mut self, debug: bool);
-    fn iter(&mut self) -> Self::CameraIter;
+    fn iter(&mut self) -> Self::CameraIter<'_>;
 }
 
-// pub struct CvCamera {
-//     debug: bool,
-//     video_capture: VideoCapture,
-//     frame: Mat,
-//     aruco_detector: ArucoDetector,
-//     corners: Vector<Vector<Point2f>>,
-//     ids: Vector<i32>,
-// }
 
 #[derive(Debug)]
 pub struct Aruco {
@@ -51,134 +45,112 @@ pub struct Aruco {
     pub corners: [(f32, f32); 4],
 }
 
-// impl CvCamera {
-//     pub fn new(index: i32) -> Result<CvCamera> {
-//         let mut video_capture = VideoCapture::new(index, CAP_ANY)?;
-//         video_capture.set(CAP_PROP_FRAME_WIDTH, 1920.0).unwrap();
-//         video_capture.set(CAP_PROP_FRAME_HEIGHT, 1080.0).unwrap();
-//         video_capture.set(CAP_PROP_FPS, 30.0).unwrap();
-//         let mut dp = DetectorParameters::default()?;
-//         dp.set_adaptive_thresh_win_size_max(31);
-//         dp.set_adaptive_thresh_win_size_step(7);
-//         Ok(CvCamera {
-//             debug: false,
-//             video_capture,
-//             frame: Mat::default(),
-//             aruco_detector: ArucoDetector::new(
-//                 &get_predefined_dictionary_i32(DICT_4X4_100)?,
-//                 &dp,
-//                 RefineParameters::new(10., 3., true)?,
-//             )?,
-//             corners: Vector::new(),
-//             ids: Vector::new(),
-//         })
-//     }
-
-//     pub fn debug(&mut self, debug: bool) {
-//         self.debug = debug;
-//     }
-// }
-
-// impl Iterator for CvCamera {
-//     type Item = Vec<Aruco>;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         match self.video_capture.read(&mut self.frame) {
-//             Ok(success) if !success => return None,
-//             Err(_) => return None,
-//             _ => {}
-//         }
-//         if self
-//             .aruco_detector
-//             .detect_markers(
-//                 &self.frame,
-//                 &mut self.corners,
-//                 &mut self.ids,
-//                 &mut no_array(),
-//             )
-//             .is_err()
-//         {
-//             return None;
-//         }
-
-//         if self.debug && !self.corners.is_empty() {
-//             draw_detected_markers(
-//                 &mut self.frame,
-//                 &self.corners,
-//                 &self.ids,
-//                 Scalar::new(0.0, 255.0, 0.0, 0.0),
-//             )
-//             .unwrap();
-//         }
-
-//         if self.debug {
-//             highgui::imshow("webcam", &self.frame).unwrap();
-//             let code = highgui::wait_key(1).unwrap();
-//             if let Some('q') = char::from_u32(code as u32) {
-//                 return None;
-//             }
-//         }
-
-//         let arucos = self
-//             .corners
-//             .iter()
-//             .zip(self.ids.iter())
-//             .map(|(c, id)| Aruco {
-//                 id,
-//                 corners: [
-//                     (c.get(0).unwrap().x, c.get(0).unwrap().y),
-//                     (c.get(1).unwrap().x, c.get(1).unwrap().y),
-//                     (c.get(2).unwrap().x, c.get(2).unwrap().y),
-//                     (c.get(3).unwrap().x, c.get(3).unwrap().y),
-//                 ],
-//             })
-//             .collect::<Vec<_>>();
-//         Some(arucos)
-//     }
-// }
-
-// #[test]
-// fn cv_camera_new() {
-//     // select camera
-//     let _cv_cam = CvCamera::new(0).unwrap();
-// }
-
-// #[test]
-// fn cv_camera_iter() {
-//     let mut cv_cam = CvCamera::new(0).unwrap();
-//     cv_cam.debug(true);
-//     for arucos in cv_cam {
-//         println!("{:?}", arucos);
-//     }
-// }
-
-struct CvCamera {}
+pub struct CvCamera {
+    debug: bool,
+    vc: VideoCapture,
+}
 
 impl Camera for CvCamera {
     type Aruco = Aruco;
 
-    type CameraIter = CvCameraIter;
+    type CameraIter<'a> = CvCameraIter<'a>;
 
     fn new(index: i32) -> Self {
-        todo!()
+        let mut vc = VideoCapture::new(index, CAP_ANY).unwrap();
+        vc.set(CAP_PROP_FRAME_WIDTH, 1920.0).unwrap();
+        vc.set(CAP_PROP_FRAME_HEIGHT, 1080.0).unwrap();
+        vc.set(CAP_PROP_FPS, 30.0).unwrap();
+        Self { debug: false, vc }
     }
 
     fn debug(&mut self, debug: bool) {
-        todo!()
+        self.debug = debug;
     }
 
-    fn iter(&mut self) -> Self::CameraIter {
-        todo!()
+    fn iter(&mut self) -> Self::CameraIter<'_> {
+        let mut dp = DetectorParameters::default().unwrap();
+        dp.set_adaptive_thresh_win_size_max(31);
+        dp.set_adaptive_thresh_win_size_step(7);
+        CvCameraIter {
+            vc: &mut self.vc,
+            frame: Mat::default(),
+            aruco_detector: ArucoDetector::new(
+                &get_predefined_dictionary_i32(DICT_4X4_100).unwrap(),
+                &dp,
+                RefineParameters::new(10., 3., true).unwrap(),
+            )
+            .unwrap(),
+            corners: Vector::new(),
+            ids: Vector::new(),
+            debug: self.debug,
+        }
     }
 }
 
-struct CvCameraIter {}
+pub struct CvCameraIter<'a> {
+    vc: &'a mut VideoCapture,
+    frame: Mat,
+    aruco_detector: ArucoDetector,
+    corners: Vector<Vector<Point2f>>,
+    ids: Vector<i32>,
+    debug: bool,
+}
 
-impl Iterator for CvCameraIter {
+impl<'a> Iterator for CvCameraIter<'a> {
     type Item = Vec<Aruco>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        match self.vc.read(&mut self.frame) {
+            Ok(success) if !success => return None,
+            Err(_) => return None,
+            _ => {}
+        }
+        if self
+            .aruco_detector
+            .detect_markers(
+                &self.frame,
+                &mut self.corners,
+                &mut self.ids,
+                &mut no_array(),
+            )
+            .is_err()
+        {
+            return None;
+        }
+
+        if self.debug && !self.corners.is_empty() {
+            draw_detected_markers(
+                &mut self.frame,
+                &self.corners,
+                &self.ids,
+                Scalar::new(0.0, 255.0, 0.0, 0.0),
+            )
+            .unwrap();
+        }
+
+        if self.debug {
+            highgui::imshow("webcam", &self.frame).unwrap();
+            let code = highgui::wait_key(1).unwrap();
+            if let Some('q') = char::from_u32(code as u32) {
+                return None;
+            }
+        }
+
+        let arucos = self
+            .corners
+            .iter()
+            .zip(self.ids.iter())
+            .map(|(c, id)| Aruco {
+                id,
+                corners: [
+                    (c.get(0).unwrap().x, c.get(0).unwrap().y),
+                    (c.get(1).unwrap().x, c.get(1).unwrap().y),
+                    (c.get(2).unwrap().x, c.get(2).unwrap().y),
+                    (c.get(3).unwrap().x, c.get(3).unwrap().y),
+                ],
+            })
+            .collect::<Vec<_>>();
+        Some(arucos)
     }
 }
 
@@ -205,7 +177,7 @@ pub async fn run_camera_service(port: u16) {
     let cam = CameraServ {
         arucos: arc_arucos.clone(),
     };
-    
+
     let job1 = async move {
         let service = CameraServiceServer::new(cam);
         Server::builder()
@@ -222,7 +194,7 @@ pub async fn run_camera_service(port: u16) {
             *arc_arucos.write().await = from_corners_to_position(arucos);
         }
     };
-
+    println!("camera services start");
     let jobs = futures::future::join(job1, job2);
     jobs.await;
 }

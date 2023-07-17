@@ -77,5 +77,6 @@ pub async fn run_sim_back_end(grpc_port:u16) {
             .await
             .unwrap();
     };
+    println!("simulation services start");
     futures::future::join(future1, future2).await;
 }

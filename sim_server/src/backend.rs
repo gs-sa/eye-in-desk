@@ -52,7 +52,6 @@ pub async fn run_server(
         .with_state(Arc::new(objects_receicer));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8000));
-    println!("Listening on http://{}", addr);
     Server::bind(&addr)
         .serve(router.into_make_service())
         .await
