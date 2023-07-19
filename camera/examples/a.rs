@@ -1,11 +1,6 @@
-use camera::{CvCamera, Camera};
+use camera::run_camera_service;
 
-fn main() {
-    let mut cam = CvCamera::new(1);
-    cam.debug(true);
-    for arucos in cam.iter() {
-        if !arucos.is_empty() {
-            println!("{:?}", arucos);
-        }
-    }
+#[tokio::main]
+async fn main() {
+    run_camera_service(50010).await
 }

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use camera_rpc::{
     camera_service_client::CameraServiceClient, ArucoPosition, GetArucosPositionRequest,
 };
@@ -28,15 +26,15 @@ use anyhow::Ok;
 use camera::run_camera_service;
 use projector_server::run_projector_back_end;
 use sim_server::run_sim_back_end;
-use tokio::{process::Command, time::sleep};
-use wry::{
-    application::{
-        event::{Event, StartCause, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
-    },
-    webview::WebViewBuilder,
-};
+use tokio::process::Command;
+// use wry::{
+//     application::{
+//         event::{Event, StartCause, WindowEvent},
+//         event_loop::{ControlFlow, EventLoop},
+//         window::WindowBuilder,
+//     },
+//     webview::WebViewBuilder,
+// };
 
 use projector_rpc::{Aruco, Circle, Text};
 static PROJ_PORT: u16 = 50051;
@@ -211,24 +209,11 @@ pub async fn run() -> anyhow::Result<()> {
 
     tokio::spawn(run_front_end_server(PROJ_FILE_PORT, "./projector"));
     tokio::spawn(run_front_end_server(SIM_FILE_PORT, "./sim"));
-
     // run grpc server
-    // run_projector_back_end(PROJ_PORT).await;
-    // run_sim_back_end(SIM_PORT).await;
-    // run_camera_service(CAM_PORT).await;
-
     println!("running grpc servers");
-    // tokio::join!(
-    //     run_projector_back_end(PROJ_PORT),
-    //     run_sim_back_end(SIM_PORT),
-    //     run_camera_service(CAM_PORT)
-    // );
     tokio::spawn(run_projector_back_end(PROJ_PORT));
     tokio::spawn(run_sim_back_end(SIM_PORT));
-    tokio::spawn(run_camera_service(CAM_PORT));
-    // run windows loop
-    sleep(Duration::from_secs(2)).await;
-    run_windows()?;
+    run_camera_service(CAM_PORT).await;
     Ok(())
 }
 
@@ -241,39 +226,39 @@ async fn run_front_end_server(static_file_port: u16, dir: &str) -> anyhow::Resul
     Ok(())
 }
 
-fn run_windows() -> anyhow::Result<()> {
-    let event_loop = EventLoop::new();
-    // build_window(&event_loop, "Projector", PROJ_FILE_PORT)?;
-    // build_window(&event_loop, "Simulation", SIM_FILE_PORT)?;
-    let proj_window = WindowBuilder::new()
-        .with_title("Projector")
-        .build(&event_loop)
-        .unwrap();
+// fn run_windows() -> anyhow::Result<()> {
+//     let event_loop = EventLoop::new();
+//     // build_window(&event_loop, "Projector", PROJ_FILE_PORT)?;
+//     // build_window(&event_loop, "Simulation", SIM_FILE_PORT)?;
+//     let proj_window = WindowBuilder::new()
+//         .with_title("Projector")
+//         .build(&event_loop)
+//         .unwrap();
 
-    let _webview = WebViewBuilder::new(proj_window)
-        .unwrap()
-        .with_url(&format!("http://localhost:{}/", PROJ_FILE_PORT))?
-        .build()?;
+//     let _webview = WebViewBuilder::new(proj_window)
+//         .unwrap()
+//         .with_url(&format!("http://localhost:{}/", PROJ_FILE_PORT))?
+//         .build()?;
 
-    let sim_window = WindowBuilder::new()
-        .with_title("Simulation")
-        .build(&event_loop)
-        .unwrap();
+//     let sim_window = WindowBuilder::new()
+//         .with_title("Simulation")
+//         .build(&event_loop)
+//         .unwrap();
 
-    let _webview = WebViewBuilder::new(sim_window)
-        .unwrap()
-        .with_url(&format!("http://localhost:{}/", SIM_FILE_PORT))?
-        .build()?;
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+//     let _webview = WebViewBuilder::new(sim_window)
+//         .unwrap()
+//         .with_url(&format!("http://localhost:{}/", SIM_FILE_PORT))?
+//         .build()?;
+//     event_loop.run(move |event, _, control_flow| {
+//         *control_flow = ControlFlow::Wait;
 
-        match event {
-            Event::NewEvents(StartCause::Init) => println!("Wry has started!"),
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            _ => {}
-        }
-    });
-}
+//         match event {
+//             Event::NewEvents(StartCause::Init) => println!("Wry has started!"),
+//             Event::WindowEvent {
+//                 event: WindowEvent::CloseRequested,
+//                 ..
+//             } => *control_flow = ControlFlow::Exit,
+//             _ => {}
+//         }
+//     });
+// }

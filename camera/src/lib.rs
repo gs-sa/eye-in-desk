@@ -1,16 +1,18 @@
 use opencv::{
-    core::{no_array, Mat, Point2f, Scalar, Vector},
-    highgui,
-    objdetect::{
-        draw_detected_markers, get_predefined_dictionary_i32, ArucoDetector, DetectorParameters,
-        RefineParameters, DICT_4X4_100,
+    aruco::{
+        detect_markers, draw_detected_markers, get_predefined_dictionary, DetectorParameters,
+        Dictionary, PREDEFINED_DICTIONARY_NAME::DICT_4X4_50,
     },
-    prelude::{ArucoDetectorTraitConst, DetectorParametersTrait},
-    videoio::{
-        VideoCapture, VideoCaptureTrait, CAP_ANY, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT,
-        CAP_PROP_FRAME_WIDTH,
-    },
-    Result,
+    core::{no_array, Mat, Mat_AUTO_STEP, Point2f, Ptr, Scalar, Vector, CV_8UC3},
+    highgui, Result,
+};
+
+use nokhwa::{
+    native_api_backend,
+    pixel_format::RgbFormat,
+    query,
+    utils::{RequestedFormat, RequestedFormatType},
+    Camera as NativeCam,
 };
 
 use std::net::SocketAddr;
@@ -32,11 +34,10 @@ pub trait Camera {
     type CameraIter<'a>: Iterator<Item = Vec<Aruco>>
     where
         Self: 'a;
-    fn new(index: i32) -> Self;
+    fn new(index: u32) -> Self;
     fn debug(&mut self, debug: bool);
     fn iter(&mut self) -> Self::CameraIter<'_>;
 }
-
 
 #[derive(Debug)]
 pub struct Aruco {
@@ -47,7 +48,7 @@ pub struct Aruco {
 
 pub struct CvCamera {
     debug: bool,
-    vc: VideoCapture,
+    cam: NativeCam,
 }
 
 impl Camera for CvCamera {
@@ -55,12 +56,20 @@ impl Camera for CvCamera {
 
     type CameraIter<'a> = CvCameraIter<'a>;
 
-    fn new(index: i32) -> Self {
-        let mut vc = VideoCapture::new(index, CAP_ANY).unwrap();
-        vc.set(CAP_PROP_FRAME_WIDTH, 1920.0).unwrap();
-        vc.set(CAP_PROP_FRAME_HEIGHT, 1080.0).unwrap();
-        vc.set(CAP_PROP_FPS, 30.0).unwrap();
-        Self { debug: false, vc }
+    fn new(index: u32) -> Self {
+        let api = native_api_backend().unwrap();
+        let cams = query(api).unwrap();
+        if cams.is_empty() {
+            panic!("no avilible camera");
+        }
+        let cam_info = cams
+            .iter()
+            .find(|c| c.index().as_index().unwrap() == index)
+            .unwrap();
+        let format =
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
+        let cam = NativeCam::with_backend(cam_info.index().clone(), format, api).unwrap();
+        Self { debug: false, cam }
     }
 
     fn debug(&mut self, debug: bool) {
@@ -68,59 +77,91 @@ impl Camera for CvCamera {
     }
 
     fn iter(&mut self) -> Self::CameraIter<'_> {
-        let mut dp = DetectorParameters::default().unwrap();
-        dp.set_adaptive_thresh_win_size_max(31);
-        dp.set_adaptive_thresh_win_size_step(7);
+        self.cam.open_stream().unwrap();
+        let dictionary = get_predefined_dictionary(DICT_4X4_50).unwrap();
+        let parameters = DetectorParameters::create().unwrap();
+        let len = (self.cam.resolution().width() as usize)
+            * (self.cam.resolution().height() as usize)
+            * 3;
+        let buf = vec![0; len];
+        // buf.resize(len, 0);
         CvCameraIter {
-            vc: &mut self.vc,
-            frame: Mat::default(),
-            aruco_detector: ArucoDetector::new(
-                &get_predefined_dictionary_i32(DICT_4X4_100).unwrap(),
-                &dp,
-                RefineParameters::new(10., 3., true).unwrap(),
-            )
-            .unwrap(),
+            cam: &mut self.cam,
+            buf,
             corners: Vector::new(),
             ids: Vector::new(),
             debug: self.debug,
+            dictionary,
+            parameters,
         }
     }
 }
 
 pub struct CvCameraIter<'a> {
-    vc: &'a mut VideoCapture,
-    frame: Mat,
-    aruco_detector: ArucoDetector,
+    cam: &'a mut NativeCam,
+    buf: Vec<u8>,
+    dictionary: Ptr<Dictionary>,
+    parameters: Ptr<DetectorParameters>,
     corners: Vector<Vector<Point2f>>,
     ids: Vector<i32>,
     debug: bool,
 }
 
+// impl CvCameraIter {
+//     fn new(index: u32) -> Self {
+//         let api = native_api_backend().unwrap();
+//         let cams = query(api).unwrap();
+//         if cams.is_empty() {
+//             panic!("no avilible camera");
+//         }
+//         let cam_info = cams
+//             .iter()
+//             .find(|c| c.index().as_index().unwrap() == index)
+//             .unwrap();
+//         let format =
+//             RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
+//         let cam = NativeCam::with_backend(cam_info.index().clone(), format, api).unwrap();
+//         Self { debug: false, cam }
+//     }
+
+//     fn debug(&mut self, debug: bool) {
+//         self.debug = debug;
+//     }
+// }
+
 impl<'a> Iterator for CvCameraIter<'a> {
     type Item = Vec<Aruco>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.vc.read(&mut self.frame) {
-            Ok(success) if !success => return None,
-            Err(_) => return None,
-            _ => {}
-        }
-        if self
-            .aruco_detector
-            .detect_markers(
-                &self.frame,
-                &mut self.corners,
-                &mut self.ids,
-                &mut no_array(),
+        self.cam
+            .write_frame_to_buffer::<RgbFormat>(&mut self.buf)
+            .unwrap();
+        let mut img = unsafe {
+            Mat::new_rows_cols_with_data(
+                self.cam.resolution().height_y as i32,
+                self.cam.resolution().width_x as i32,
+                CV_8UC3,
+                self.buf.as_ptr() as *mut _,
+                Mat_AUTO_STEP,
             )
-            .is_err()
-        {
-            return None;
         }
+        .unwrap();
+
+        detect_markers(
+            &img,
+            &self.dictionary,
+            &mut self.corners,
+            &mut self.ids,
+            &self.parameters,
+            &mut no_array(),
+            &no_array(),
+            &no_array(),
+        )
+        .unwrap();
 
         if self.debug && !self.corners.is_empty() {
             draw_detected_markers(
-                &mut self.frame,
+                &mut img,
                 &self.corners,
                 &self.ids,
                 Scalar::new(0.0, 255.0, 0.0, 0.0),
@@ -129,7 +170,7 @@ impl<'a> Iterator for CvCameraIter<'a> {
         }
 
         if self.debug {
-            highgui::imshow("webcam", &self.frame).unwrap();
+            highgui::imshow("webcam", &img).unwrap();
             let code = highgui::wait_key(1).unwrap();
             if let Some('q') = char::from_u32(code as u32) {
                 return None;
@@ -195,8 +236,7 @@ pub async fn run_camera_service(port: u16) {
         }
     };
     println!("camera services start");
-    let jobs = futures::future::join(job1, job2);
-    jobs.await;
+    futures::future::join(job1, job2).await;
 }
 
 fn from_corners_to_position(arucos: Vec<Aruco>) -> Vec<ArucoPosition> {
