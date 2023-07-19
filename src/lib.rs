@@ -40,6 +40,7 @@ use projector_rpc::{Aruco, Circle, Text};
 static PROJ_PORT: u16 = 50051;
 static SIM_PORT: u16 = 50052;
 static CAM_PORT: u16 = 50053;
+static ROBOT_PORT: u16 = 50054;
 
 pub struct EyeInDesk {
     cam_client: CameraServiceClient<Channel>,

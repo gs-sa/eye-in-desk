@@ -23,7 +23,8 @@ pub fn array_to_isometry(array: &[f64; 16]) -> Isometry3<f64> {
     )
 }
 
-fn main() -> FrankaResult<()> {
+#[tokio::main]
+async fn main() -> FrankaResult<()> {
     let translational_stiffness = 150.;
     let rotational_stiffness = 10.;
     let mut stiffness: Matrix6<f64> = Matrix6::zeros();
