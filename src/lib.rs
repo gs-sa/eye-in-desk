@@ -1,62 +1,58 @@
-use camera_rpc::{
+use nalgebra::{Isometry3, Matrix4, Transform3};
+use tonic::{codegen::StdError, transport::Channel, Status};
+
+use camera::rpc::{
     camera_service_client::CameraServiceClient, ArucoPosition, GetArucosPositionRequest,
 };
-use projector_rpc::{
-    projector_service_client::ProjectorServiceClient, DrawArucosRequest, DrawCirclesRequest,
-    DrawRequest, DrawTextsRequest, GetDrawableSizeRequest,
+use projector_server::rpc::{
+    projector_service_client::ProjectorServiceClient, Aruco, Circle, DrawArucosRequest,
+    DrawCirclesRequest, DrawRequest, DrawTextsRequest, GetDrawableSizeRequest, Text,
 };
-use tonic::{codegen::StdError, transport::Channel, Status};
-use web_rpc::{
-    web_service_client::WebServiceClient, Object, ShowObjectsRequest, UpdateRobotRequest,
-};
-
-mod web_rpc {
-    tonic::include_proto!("web");
-}
-
-mod camera_rpc {
-    tonic::include_proto!("camera");
-}
-
-mod projector_rpc {
-    tonic::include_proto!("projector");
-}
+use robot::{rpc::{
+    robot_service_client::RobotServiceClient, GetRobotInfoRequest, SetRobotTargetRequest,
+}, array_to_isometry};
 
 use anyhow::Ok;
 use camera::run_camera_service;
 use projector_server::run_projector_back_end;
-use sim_server::run_sim_back_end;
+use robot::run_robot_service;
+use sim_server::{
+    rpc::{web_service_client::WebServiceClient, Object, ShowObjectsRequest, UpdateRobotRequest},
+    run_sim_back_end,
+};
 use tokio::process::Command;
-// use wry::{
-//     application::{
-//         event::{Event, StartCause, WindowEvent},
-//         event_loop::{ControlFlow, EventLoop},
-//         window::WindowBuilder,
-//     },
-//     webview::WebViewBuilder,
-// };
 
-use projector_rpc::{Aruco, Circle, Text};
 static PROJ_PORT: u16 = 50051;
 static SIM_PORT: u16 = 50052;
 static CAM_PORT: u16 = 50053;
+static ROBOT_PORT: u16 = 50054;
+
+static PROJ_FILE_PORT: u16 = 8002;
+static SIM_FILE_PORT: u16 = 8003;
 
 pub struct EyeInDesk {
     cam_client: CameraServiceClient<Channel>,
     proj_client: ProjectorServiceClient<Channel>,
     sim_client: WebServiceClient<Channel>,
+    robot_client: RobotServiceClient<Channel>,
+}
+
+pub struct RobotState {
+    pub joints: Vec<f64>,
+    pub transform: Isometry3<f64>,
 }
 
 impl EyeInDesk {
+    /// connect with defalut address
     pub async fn default_connect() -> Self {
-        use tonic::transport::Endpoint;
-        let cam_addr = Endpoint::from_shared(format!("http://[::1]:{}", CAM_PORT)).unwrap();
-        let proj_addr = Endpoint::from_shared(format!("http://[::1]:{}", PROJ_PORT)).unwrap();
-        let sim_addr = Endpoint::from_shared(format!("http://[::1]:{}", SIM_PORT)).unwrap();
-        EyeInDesk::connect(cam_addr, proj_addr, sim_addr).await
+        let proj_addr = format!("http://127.0.0.1:{PROJ_PORT}");
+        let sim_addr = format!("http://127.0.0.1:{SIM_PORT}");
+        let cam_addr = format!("http://127.0.0.1:{CAM_PORT}");
+        let robot_addr = format!("http://127.0.0.1:{ROBOT_PORT}");
+        EyeInDesk::connect(cam_addr, proj_addr, sim_addr, robot_addr).await
     }
 
-    pub async fn connect<A>(cam_addr: A, proj_addr: A, sim_addr: A) -> Self
+    pub async fn connect<A>(cam_addr: A, proj_addr: A, sim_addr: A, robot_addr: A) -> Self
     where
         A: TryInto<tonic::transport::Endpoint>,
         A::Error: Into<StdError>,
@@ -65,11 +61,12 @@ impl EyeInDesk {
             CameraServiceClient::connect(cam_addr).await.unwrap();
         let proj_client = ProjectorServiceClient::connect(proj_addr).await.unwrap();
         let sim_client = WebServiceClient::connect(sim_addr).await.unwrap();
-
+        let robot_client = RobotServiceClient::connect(robot_addr).await.unwrap();
         EyeInDesk {
             cam_client,
             proj_client,
             sim_client,
+            robot_client,
         }
     }
 
@@ -122,14 +119,37 @@ impl EyeInDesk {
             .map(|_| ())
     }
 
-    pub async fn update_virtual_robot(&mut self, joints: &[f64; 7]) -> Result<(), Status> {
+    pub async fn update_virtual_robot(&mut self, robot: Vec<f64>) -> Result<(), Status> {
         self.sim_client
-            .update_robot(UpdateRobotRequest {
-                robot: joints.to_vec(),
-            })
+            .update_robot(UpdateRobotRequest { robot })
             .await
             .map(|_| ())
     }
+
+    pub async fn get_real_robot_state(&mut self) -> Result<RobotState, Status> {
+        self.robot_client
+            .get_robot_info(GetRobotInfoRequest {})
+            .await
+            .map(|resp| {
+                let resp = resp.into_inner();
+                RobotState {
+                    joints: resp.joints,
+                    transform: array_to_isometry(&resp.t),
+                }
+            })
+    }
+
+    pub async fn set_real_robot_target(&mut self, transfrom: Isometry3<f64>) -> Result<(), Status> {
+        self.robot_client
+            .set_robot_target(SetRobotTargetRequest { t: transfrom.to_matrix().as_slice().to_vec() })
+            .await
+            .map(|_| ())
+    }
+}
+
+#[tokio::test]
+async fn eye_in_desk_connect() {
+    EyeInDesk::default_connect().await;
 }
 
 #[tokio::test]
@@ -196,12 +216,26 @@ async fn eye_in_desk_update_virtaul_objects() {
 async fn eye_in_desk_update_virtaul_robot() {
     use std::f64::consts::PI;
     let mut eid = EyeInDesk::default_connect().await;
-    let joints = [0., -PI / 4., 0., -3. * PI / 4., 0., PI / 2., PI / 4.];
-    eid.update_virtual_robot(&joints).await.unwrap();
+    let joints = vec![0., -PI / 4., 0., -3. * PI / 4., 0., PI / 2., PI / 4.];
+    eid.update_virtual_robot(joints).await.unwrap();
 }
 
-static PROJ_FILE_PORT: u16 = 8002;
-static SIM_FILE_PORT: u16 = 8003;
+#[tokio::test]
+async fn eye_in_desk_get_real_robot_state() {
+    let mut eid = EyeInDesk::default_connect().await;
+    let state = eid.get_real_robot_state().await.unwrap();
+    println!("{:?}", state.joints);
+    println!("{}", state.transform);
+}
+
+#[tokio::test]
+async fn eye_in_desk_set_real_robot_target() {
+    let mut eid = EyeInDesk::default_connect().await;
+    let state = eid.get_real_robot_state().await.unwrap();
+    let mut t = state.transform;
+    t.translation.z += 0.1;
+    eid.set_real_robot_target(t).await.unwrap();
+}
 
 pub async fn run() -> anyhow::Result<()> {
     // run front end servers
@@ -213,6 +247,7 @@ pub async fn run() -> anyhow::Result<()> {
     println!("running grpc servers");
     tokio::spawn(run_projector_back_end(PROJ_PORT));
     tokio::spawn(run_sim_back_end(SIM_PORT));
+    // tokio::spawn(run_robot_service(ROBOT_PORT));
     run_camera_service(CAM_PORT).await;
     Ok(())
 }
@@ -251,7 +286,6 @@ async fn run_front_end_server(static_file_port: u16, dir: &str) -> anyhow::Resul
 //         .build()?;
 //     event_loop.run(move |event, _, control_flow| {
 //         *control_flow = ControlFlow::Wait;
-
 //         match event {
 //             Event::NewEvents(StartCause::Init) => println!("Wry has started!"),
 //             Event::WindowEvent {

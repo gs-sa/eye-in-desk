@@ -109,6 +109,7 @@ impl ProjectorService for DrawService {
 // ws: 8001
 pub async fn run_projector_back_end(grpc_port: u16) {
     let addr = SocketAddr::from(([127, 0, 0, 1], grpc_port));
+    println!("projector services start at {}", addr);
     let (draw_sender, _) = channel(10);
     let (command_sender, _) = channel(10);
     let (command_result_sender, command_receiver) = mpsc::channel(10);
@@ -126,6 +127,6 @@ pub async fn run_projector_back_end(grpc_port: u16) {
             .await
             .unwrap()
     };
-    println!("projector services start");
+    
     futures::future::join(future1, future2).await;
 }

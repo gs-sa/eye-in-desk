@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package robot;
+
+service RobotService {
+    rpc GetRobotInfo (GetRobotInfoRequest) returns (GetRobotInfoResponse) {}
+    rpc SetRobotTarget (SetRobotTargetRequest) returns (SetRobotTargetResponse);
+}
+
+message GetRobotInfoRequest {}
+
+message GetRobotInfoResponse {
+    repeated double joints = 1;
+    repeated double T = 2;
+}
+
+message SetRobotTargetRequest {
+    repeated double T = 1;
+}
+
+message SetRobotTargetResponse {}
