@@ -13,12 +13,13 @@ use web_rpc::{
 use camera::rpc as camera_rpc;
 use projector_server::rpc as projector_rpc;
 use sim_server::rpc as web_rpc;
-use robot::rpc as robot_rpc
+use robot::rpc as robot_rpc;
 
 use anyhow::Ok;
 use camera::run_camera_service;
 use projector_server::run_projector_back_end;
 use sim_server::run_sim_back_end;
+use robot::run_robot_service;
 use tokio::process::Command;
 
 use projector_rpc::{Aruco, Circle, Text};
@@ -199,6 +200,7 @@ pub async fn run() -> anyhow::Result<()> {
     println!("running grpc servers");
     tokio::spawn(run_projector_back_end(PROJ_PORT));
     tokio::spawn(run_sim_back_end(SIM_PORT));
+    tokio::spawn(run_robot_service(ROBOT_PORT));
     run_camera_service(CAM_PORT).await;
     Ok(())
 }
