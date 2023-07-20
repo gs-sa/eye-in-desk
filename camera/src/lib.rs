@@ -18,14 +18,14 @@ use nokhwa::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use camera::camera_service_server::{CameraService, CameraServiceServer};
-use camera::{ArucoPosition, GetArucosPositionRequest, GetArucosPositionResponse};
+use rpc::camera_service_server::{CameraService, CameraServiceServer};
+use rpc::{ArucoPosition, GetArucosPositionRequest, GetArucosPositionResponse};
 
 use tokio::sync::RwLock;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 
-pub mod camera {
+pub mod rpc {
     tonic::include_proto!("camera");
 }
 

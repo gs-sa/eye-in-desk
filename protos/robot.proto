@@ -11,6 +11,7 @@ message GetRobotInfoRequest {}
 
 message GetRobotInfoResponse {
     repeated double joints = 1;
+    repeated double T = 2;
 }
 
 message SetRobotTargetRequest {

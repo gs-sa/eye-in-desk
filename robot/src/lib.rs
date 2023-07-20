@@ -6,15 +6,14 @@ use rpc::{
     robot_service_server::{RobotService, RobotServiceServer},
     GetRobotInfoRequest, GetRobotInfoResponse, SetRobotTargetRequest, SetRobotTargetResponse,
 };
-use tokio::sync::broadcast::{channel, Sender};
+use tokio::sync::broadcast::{channel, error::TryRecvError, Sender};
 
 use std::{net::SocketAddr, thread};
 
-use tonic::{transport::Server, Request, Response, Status};
-use franka::{Frame, Finishable};
 use franka::FrankaResult;
 use franka::Robot;
 use franka::Torques;
+use franka::{Finishable, Frame};
 use nalgebra::Isometry3;
 use nalgebra::Matrix4;
 use nalgebra::Rotation3;
@@ -23,9 +22,16 @@ use nalgebra::SVector;
 use nalgebra::UnitQuaternion;
 use nalgebra::Vector3;
 use nalgebra::{Matrix3, Matrix6, Matrix6x1};
+use tonic::{transport::Server, Request, Response, Status};
+
+#[derive(Clone)]
+struct RobotInfo {
+    joints: Vec<f64>,
+    t: Vec<f64>
+}
 
 struct RobotServ {
-    joint_channel: Sender<Vec<f64>>,
+    info_channel: Sender<RobotInfo>,
     cmd_channel: Sender<Vec<f64>>,
 }
 
@@ -35,9 +41,9 @@ impl RobotService for RobotServ {
         &self,
         _request: Request<GetRobotInfoRequest>,
     ) -> Result<Response<GetRobotInfoResponse>, Status> {
-        let mut jc = self.joint_channel.subscribe();
-        if let Ok(joints) = jc.recv().await {
-            Ok(Response::new(GetRobotInfoResponse { joints }))
+        let mut ic = self.info_channel.subscribe();
+        if let Ok(info) = ic.recv().await {
+            Ok(Response::new(GetRobotInfoResponse { joints:info.joints, t: info.t }))
         } else {
             Err(Status::internal("Failed to recv joints"))
         }
@@ -57,14 +63,16 @@ impl RobotService for RobotServ {
 
 pub async fn run_robot_service(port: u16) {
     let addr: SocketAddr = SocketAddr::from(([0, 0, 0, 0], port));
-    let (joint_sender, _) = channel(10);
+    let (info_sender, _) = channel(10);
     let (cmd_sender, _) = channel(10);
 
     let service = RobotServiceServer::new(RobotServ {
-        joint_channel: joint_sender.clone(),
+        info_channel: info_sender.clone(),
         cmd_channel: cmd_sender.clone(),
     });
-    thread::spawn(move || {run_robot(joint_sender, cmd_sender)});
+
+    thread::spawn(move || run_robot(info_sender, cmd_sender));
+
     Server::builder()
         .add_service(service)
         .serve(addr)
@@ -72,7 +80,7 @@ pub async fn run_robot_service(port: u16) {
         .unwrap();
 }
 
-pub fn array_to_isometry(array: &[f64]) -> Isometry3<f64> {
+fn array_to_isometry(array: &[f64]) -> Isometry3<f64> {
     let rot = Rotation3::from_matrix(
         &Matrix4::from_column_slice(array)
             .remove_column(3)
@@ -84,7 +92,7 @@ pub fn array_to_isometry(array: &[f64]) -> Isometry3<f64> {
     )
 }
 
-fn run_robot(joint_sender: Sender<Vec<f64>>, cmd_sender: Sender<Vec<f64>>) -> FrankaResult<()> {
+fn run_robot(info_sender: Sender<RobotInfo>, cmd_sender: Sender<Vec<f64>>) -> FrankaResult<()> {
     let mut cmd_recv = cmd_sender.subscribe();
     let translational_stiffness = 150.;
     let rotational_stiffness = 10.;
@@ -104,6 +112,7 @@ fn run_robot(joint_sender: Sender<Vec<f64>>, cmd_sender: Sender<Vec<f64>>) -> Fr
         .copy_from(&(Matrix3::identity() * rotational_stiffness.sqrt()));
 
     let mut robot = Robot::new("192.168.1.101", Some(franka::RealtimeConfig::Ignore), None)?;
+    robot.automatic_error_recovery().unwrap();
     let model = robot.load_model(true)?;
 
     // Set additional parameters always before the control loop, NEVER in the control loop!
@@ -116,29 +125,35 @@ fn run_robot(joint_sender: Sender<Vec<f64>>, cmd_sender: Sender<Vec<f64>>) -> Fr
     let mut position_d = initial_transform.translation.vector;
     let mut orientation_d = initial_transform.rotation;
 
-    // println!(
-    //     "WARNING: Collision thresholds are set to high values. \
-    //          Make sure you have the user stop at hand!"
-    // );
+    println!("robot start");
     // println!("After starting try to push the robot and see how it reacts.");
     // println!("Press Enter to continue...");
     // std::io::stdin().read_line(&mut String::new()).unwrap();
     let result = robot.control_torques(
         |state, _step| -> Torques {
-            if joint_sender.send(state.q.to_vec()).is_err() {
-                let mut t = Torques::new([0.;7]);
-                t.set_motion_finished(true);
-                return t
+            if info_sender.receiver_count() != 0 {
+                let info = RobotInfo {
+                    joints: state.q.to_vec(),
+                    t: state.O_T_EE.to_vec(),
+                };
+                if info_sender.send(info).is_err() {
+                    println!("joint sender fail");
+                }
             }
 
-            if let Ok(t) = cmd_recv.try_recv() {
-                let target_transform = array_to_isometry(&t);
+            match cmd_recv.try_recv() {
+                Ok(t) => {
+                    let target_transform = array_to_isometry(&t);
                     position_d = target_transform.translation.vector;
                     orientation_d = target_transform.rotation;
-            } else {
-                let mut t = Torques::new([0.;7]);
-                t.set_motion_finished(true);
-                return t
+                }
+                Err(TryRecvError::Closed) => {
+                    println!("no cmd senders");
+                    let mut t = Torques::new([0.; 7]);
+                    t.set_motion_finished(true);
+                    return t;
+                }
+                _ => {}
             }
 
             let coriolis = SVector::<_, 7>::from_column_slice(&model.coriolis_from_state(&state));

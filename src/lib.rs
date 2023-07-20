@@ -10,31 +10,16 @@ use web_rpc::{
     web_service_client::WebServiceClient, Object, ShowObjectsRequest, UpdateRobotRequest,
 };
 
-mod web_rpc {
-    tonic::include_proto!("web");
-}
-
-mod camera_rpc {
-    tonic::include_proto!("camera");
-}
-
-mod projector_rpc {
-    tonic::include_proto!("projector");
-}
+use camera::rpc as camera_rpc;
+use projector_server::rpc as projector_rpc;
+use sim_server::rpc as web_rpc;
+use robot::rpc as robot_rpc
 
 use anyhow::Ok;
 use camera::run_camera_service;
 use projector_server::run_projector_back_end;
 use sim_server::run_sim_back_end;
 use tokio::process::Command;
-// use wry::{
-//     application::{
-//         event::{Event, StartCause, WindowEvent},
-//         event_loop::{ControlFlow, EventLoop},
-//         window::WindowBuilder,
-//     },
-//     webview::WebViewBuilder,
-// };
 
 use projector_rpc::{Aruco, Circle, Text};
 static PROJ_PORT: u16 = 50051;
