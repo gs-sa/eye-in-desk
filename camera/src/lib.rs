@@ -212,22 +212,23 @@ impl CameraService for CameraServ {
 }
 
 pub async fn run_camera_service(port: u16) {
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    println!("camera services start at {}", addr.to_string());
     let arc_arucos = Arc::new(RwLock::new(vec![]));
 
     let cam = CameraServ {
         arucos: arc_arucos.clone(),
     };
 
+    let service = CameraServiceServer::new(cam);
+
     let job1 = async move {
-        let service = CameraServiceServer::new(cam);
         Server::builder()
             .add_service(service)
             .serve(addr)
             .await
             .unwrap();
     };
-
     let job2 = async move {
         let mut cam = CvCamera::new(0);
         cam.debug(false);
@@ -235,7 +236,6 @@ pub async fn run_camera_service(port: u16) {
             *arc_arucos.write().await = from_corners_to_position(arucos);
         }
     };
-    println!("camera services start");
     futures::future::join(job1, job2).await;
 }
 

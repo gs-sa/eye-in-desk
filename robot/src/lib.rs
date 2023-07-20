@@ -80,7 +80,7 @@ pub async fn run_robot_service(port: u16) {
         .unwrap();
 }
 
-fn array_to_isometry(array: &[f64]) -> Isometry3<f64> {
+pub fn array_to_isometry(array: &[f64]) -> Isometry3<f64> {
     let rot = Rotation3::from_matrix(
         &Matrix4::from_column_slice(array)
             .remove_column(3)
@@ -95,7 +95,7 @@ fn array_to_isometry(array: &[f64]) -> Isometry3<f64> {
 fn run_robot(info_sender: Sender<RobotInfo>, cmd_sender: Sender<Vec<f64>>) -> FrankaResult<()> {
     let mut cmd_recv = cmd_sender.subscribe();
     let translational_stiffness = 150.;
-    let rotational_stiffness = 10.;
+    let rotational_stiffness = 20.;
     let mut stiffness: Matrix6<f64> = Matrix6::zeros();
     let mut damping: Matrix6<f64> = Matrix6::zeros();
     stiffness
@@ -181,7 +181,15 @@ fn run_robot(info_sender: Sender<RobotInfo>, cmd_sender: Sender<Vec<f64>>) -> Fr
             );
             let tau_task = jacobian.transpose() * (-stiffness * error - damping * (jacobian * dq));
             let tau = tau_task + coriolis;
-            let torques = tau.into();
+            let mut torques: [f64; 7] = tau.into();
+            for i in 0..7 {
+                if torques[i] > 12. {
+                    torques[i] = 12.
+                }
+                if torques[i] < -12. {
+                    torques[i] = -12.
+                }
+            }
             Torques::new(torques)
         },
         None,
