@@ -4,7 +4,7 @@ use opencv::{
         Dictionary, PREDEFINED_DICTIONARY_NAME::DICT_4X4_50,
     },
     core::{no_array, Mat, Mat_AUTO_STEP, Point2f, Ptr, Scalar, Vector, CV_8UC3},
-    highgui, Result,
+    highgui, Result, prelude::*,
 };
 
 use nokhwa::{
@@ -67,7 +67,7 @@ impl Camera for CvCamera {
             .find(|c| c.index().as_index().unwrap() == index)
             .unwrap();
         let format =
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
         let cam = NativeCam::with_backend(cam_info.index().clone(), format, api).unwrap();
         Self { debug: false, cam }
     }
@@ -79,7 +79,11 @@ impl Camera for CvCamera {
     fn iter(&mut self) -> Self::CameraIter<'_> {
         self.cam.open_stream().unwrap();
         let dictionary = get_predefined_dictionary(DICT_4X4_50).unwrap();
-        let parameters = DetectorParameters::create().unwrap();
+        let mut parameters = DetectorParameters::create().unwrap();
+        // parameters.set_adaptive_thresh_constant(val)
+        parameters.set_adaptive_thresh_win_size_max(40);
+        parameters.set_adaptive_thresh_win_size_min(20);
+        // parameters.set_adaptive_thresh_win_size_step(val)
         let len = (self.cam.resolution().width() as usize)
             * (self.cam.resolution().height() as usize)
             * 3;
@@ -160,6 +164,9 @@ impl<'a> Iterator for CvCameraIter<'a> {
         .unwrap();
 
         if self.debug && !self.corners.is_empty() {
+            // let mut resized_mat = Mat::zeros(540, 960, CV_8UC3).unwrap().a();
+            // let size = resized_mat.size().unwrap();
+            // resize(&img, &mut resized_mat, size, 0., 0., INTER_LINEAR).unwrap();
             draw_detected_markers(
                 &mut img,
                 &self.corners,
@@ -231,7 +238,7 @@ pub async fn run_camera_service(port: u16) {
     };
     let job2 = async move {
         let mut cam = CvCamera::new(0);
-        cam.debug(false);
+        cam.debug(true);
         for arucos in cam.iter() {
             *arc_arucos.write().await = from_corners_to_position(arucos);
         }
