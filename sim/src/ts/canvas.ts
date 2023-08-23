@@ -1,12 +1,19 @@
-import { AmbientLight, BoxGeometry, Color, DirectionalLight, GridHelper, Group, Mesh, MeshBasicMaterial, MeshMatcapMaterial, MeshStandardMaterial, MeshToonMaterial, PerspectiveCamera, Scene, WebGLRenderer } from "three";
+import { AmbientLight, BoxGeometry, Color, DirectionalLight, GridHelper, Group, Material, Matrix4, Mesh, MeshBasicMaterial, MeshMatcapMaterial, MeshPhongMaterial, MeshStandardMaterial, MeshToonMaterial, PerspectiveCamera, Scene, TextureLoader, WebGLRenderer } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { URDFRobot } from 'urdf-js/src/URDFClasses';
 import URDFLoader from 'urdf-js/src/URDFLoader';
 
 interface Object {
     id: number,
-    pos: number[],
-    rot: number[],
+    x: number,
+    y: number,
+    z: number,
+    rot: number,
+}
+
+interface objectsResp {
+    objects: string[]
 }
 
 export class State {
@@ -16,10 +23,13 @@ export class State {
     robot: URDFRobot
     jointsWs: WebSocket
     primitiveWs: WebSocket
+    obj_map: Map<number, Group>
     constructor(renderer: WebGLRenderer,
         scene: Scene,
         camera: PerspectiveCamera,
-        robot: URDFRobot) {
+        robot: URDFRobot,
+        obj_map: Map<number, Group>
+    ) {
         this.renderer = renderer;
         this.scene = scene;
         this.camera = camera;
@@ -39,25 +49,26 @@ export class State {
                 })
             })
         }
-        
+
         this.primitiveWs = new WebSocket("ws://localhost:8000/primitiveWs");
         this.primitiveWs.onmessage = (ev: MessageEvent<string>) => {
             let objs: Object[] = JSON.parse(ev.data);
             let g = new Group();
-            if (objs.length !== 0) {
-                let b = new Mesh(new BoxGeometry(
-                    0.1, 0.1, 0.1
-                ), new MeshMatcapMaterial({
-                    color: "red"
-                }));
-                b.translateX(0.5);
-                g.add(b);
-            }
+
+            obj_map.forEach((v, _) => {
+                v.visible = false;
+            });
             for (const obj of objs) {
-                
+                let g = this.obj_map.get(obj.id);
+                if (g !== undefined) {
+                    g.position.set(obj.x, obj.y, obj.z);
+                    g.rotateZ(obj.rot);
+                    g.visible = true;
+                }
             }
             this.scene.children[0] = g;
         }
+        this.obj_map = obj_map;
     }
     render() {
         requestAnimationFrame(this.render.bind(this));
@@ -65,7 +76,7 @@ export class State {
     }
 }
 
-export function initState(container: HTMLDivElement) {
+export async function initState(container: HTMLDivElement) {
     // create renderer
     let renderer = new WebGLRenderer({
         // use input canvas
@@ -106,28 +117,51 @@ export function initState(container: HTMLDivElement) {
     let grid = new GridHelper(10, 100);
     scene.add(grid);
 
-    // add desk
-    // let desk = new BoxGeometry(1.28, 0.03, 0.64);
-    // scene.add(new Mesh(desk, new MeshStandardMaterial({ color: new Color(0x8899DD) })));
+    // add ycbs
+    let objects = await fetch("./ycb/objects.json").then((resp) => {
+        return resp.json()
+    }).then((objects: objectsResp) => {
+        return objects.objects;
+    });
 
-    // add debug helpers
-    // new OrbitControls(camera, renderer.domElement);
+    let obj_loader = new OBJLoader();
+    let texture_loader = new TextureLoader();
+    let obj_map = new Map<number, Group>();
+    let ycb_group = new Group();
+    ycb_group.rotateX(-Math.PI / 2);
+    scene.add(ycb_group);
+    for (let i = 0; i < objects.length; i++) {
+        const obj = objects[i];
+        let resp = await fetch(`./ycb/${obj}/google_16k/textured.obj`);
+        if (resp.ok) {
+            let text = await resp.text();
+            let g = obj_loader.parse(text);
 
+            let mesh = g.children[0] as Mesh;
+            texture_loader.load(`./ycb/${obj}/google_16k/texture_map.png`, (t) => {
+                (mesh.material as MeshPhongMaterial).map = t;
+            });
+
+            obj_map.set(i, g);
+            g.visible = false;
+            ycb_group.add(g);
+        }
+    }
+    // let g = (obj_map.get(2) as Group);
+    // g.visible = true;
+    // g.position.set(0.5, 0.2, 0);
+    // g.rotateZ(Math.PI / 2);
+
+    // new OrbitControls(camera, renderer.domElement)
+    
     // urdf loader
     let loader = new URDFLoader();
     loader.load("./Panda/panda.urdf", (robot) => {
-        // robot.traverse((object)=>{
-        //     if (object instanceof Mesh) {
-        //         object.material = new MeshBasicMaterial({
-        //             color: new Color(0xFFFFFF),
-        //         });
-        //     }
-        // });
-
         robot.rotation.set(-90 / 360 * 2 * Math.PI, 0, 0);
         scene.add(robot);
-        state = new State(renderer, scene, camera, robot);
+        state = new State(renderer, scene, camera, robot, obj_map);
         state.render();
+
     }, () => { }, () => { console.log("error") }, { packages: "./Panda" });
 }
 

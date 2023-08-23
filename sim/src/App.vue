@@ -2,9 +2,9 @@
 import { onMounted, ref } from 'vue';
 import { initState, state } from './ts/canvas';
 const container = ref<HTMLDivElement | null>(null);
-onMounted(() => {
+onMounted(async () => {
   if (container.value !== null) {
-    initState(container.value);
+    await initState(container.value);
   }
 })
 
