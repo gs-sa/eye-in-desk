@@ -1,4 +1,4 @@
-import { AmbientLight, BoxGeometry, Color, DirectionalLight, GridHelper, Group, Material, Matrix4, Mesh, MeshBasicMaterial, MeshMatcapMaterial, MeshPhongMaterial, MeshStandardMaterial, MeshToonMaterial, PerspectiveCamera, Scene, TextureLoader, WebGLRenderer } from "three";
+import { AmbientLight, BoxGeometry, Color, DirectionalLight, Euler, GridHelper, Group, Material, Matrix4, Mesh, MeshBasicMaterial, MeshMatcapMaterial, MeshPhongMaterial, MeshStandardMaterial, MeshToonMaterial, PerspectiveCamera, Scene, TextureLoader, WebGLRenderer } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { URDFRobot } from 'urdf-js/src/URDFClasses';
@@ -62,7 +62,7 @@ export class State {
                 let g = this.obj_map.get(obj.id);
                 if (g !== undefined) {
                     g.position.set(obj.x, obj.y, obj.z);
-                    g.rotateZ(obj.rot);
+                    g.rotation.set(0, 0, obj.rot);
                     g.visible = true;
                 }
             }
