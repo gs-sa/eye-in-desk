@@ -27,9 +27,16 @@ pub struct Object {
     pub id: i32,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct Control {
+    pub rotate_left: f32,
+    pub rotate_up: f32,
+}
+
 pub async fn run_server(
     robot_state_receicer: Sender<RobotState>,
     objects_receicer: Sender<Vec<Object>>,
+    control_receiver: Sender<Control>,
 ) {
     let router = Router::new()
         .nest_service(
@@ -49,7 +56,9 @@ pub async fn run_server(
         .route("/jointsWs", get(handle_joints_ws_upgrade))
         .with_state(Arc::new(robot_state_receicer))
         .route("/primitiveWs", get(handle_primitive_ws_upgrade))
-        .with_state(Arc::new(objects_receicer));
+        .with_state(Arc::new(objects_receicer))
+        .route("/controlWs", get(handle_control_ws_upgrade))
+        .with_state(Arc::new(control_receiver));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8000));
     Server::bind(&addr)
@@ -70,6 +79,13 @@ async fn handle_primitive_ws_upgrade(
     State(state): State<Arc<Sender<Vec<Object>>>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_primitive_ws(socket, state))
+}
+
+async fn handle_control_ws_upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<Sender<Control>>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_control_ws(socket, state))
 }
 
 async fn handle_joints_ws(ws: WebSocket, state: Arc<Sender<RobotState>>) {
@@ -104,6 +120,31 @@ async fn handle_primitive_ws(ws: WebSocket, state: Arc<Sender<Vec<Object>>>) {
     let mut send_task = tokio::spawn(async move {
         while let Ok(objects) = rx.recv().await {
             let json = serde_json::to_string(&objects).unwrap();
+            if sink.send(Message::Text(json)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = stream.next().await {
+            if let Message::Close(_) = msg {
+                break;
+            }
+        }
+    });
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
+}
+
+async fn handle_control_ws(ws: WebSocket, state: Arc<Sender<Control>>) {
+    let (mut sink, mut stream) = ws.split();
+    let mut rx = state.subscribe();
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(control) = rx.recv().await {
+            let json = serde_json::to_string(&control).unwrap();
             if sink.send(Message::Text(json)).await.is_err() {
                 break;
             }

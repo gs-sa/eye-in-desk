@@ -7,8 +7,9 @@ service ProjectorService {
     rpc Draw (DrawRequest) returns (DrawResponse);
     rpc DrawArucos (DrawArucosRequest) returns (DrawResponse);
     rpc DrawTexts (DrawTextsRequest) returns (DrawResponse);
+    rpc DrawLines (DrawLinesRequest) returns (DrawResponse);
     // rpc DrawTriangles (DrawTrianglesRequest) returns (DrawResponse);
-    // rpc DrawRectangles (DrawRectanglesRequest) returns (DrawResponse);
+    rpc DrawRectangles (DrawRectanglesRequest) returns (DrawResponse);
     rpc DrawCircles (DrawCirclesRequest) returns (DrawResponse);
 }
 
@@ -46,6 +47,31 @@ message Text {
     float size = 4;
 }
 
+message DrawLinesRequest {
+    repeated Line lines = 1;
+}
+
+message Line {
+    float x1 = 1;
+    float y1 = 2;
+    float x2 = 3;
+    float y2 = 4;
+    float width = 5;
+}
+
+message DrawRectanglesRequest {
+    repeated Rectangle rectangles = 1;
+}
+
+message Rectangle {
+    float x = 1;
+    float y = 2;
+    float width = 3;
+    float height = 4;
+    float line_width = 5;
+    bool fill = 6;
+}
+
 message DrawCirclesRequest {
     repeated Circle circles = 1;
 }
@@ -54,6 +80,7 @@ message Circle {
     float x = 1;
     float y = 2;
     float radius = 3;
+    bool fill = 4;
 }
 
 message DrawResponse {

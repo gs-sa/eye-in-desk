@@ -5,6 +5,7 @@ package web;
 service WebService {
     rpc ShowObjects (ShowObjectsRequest) returns (WebResponse);
     rpc UpdateRobot (UpdateRobotRequest) returns (WebResponse);
+    rpc CameraControl (CameraControlRequest) returns (WebResponse);
 }
 
 message ShowObjectsRequest {
@@ -21,6 +22,12 @@ message Object {
     float y = 3;
     float z = 4;
     float rot = 5;
+    float scale = 6;
+}
+
+message CameraControlRequest {
+    float rotate_left = 1;
+    float rotate_up = 2;
 }
 
 message WebResponse {
