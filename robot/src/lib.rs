@@ -59,6 +59,8 @@ impl RobotService for RobotServ {
             Ok(Response::new(SetRobotTargetResponse {}))
         }
     }
+    
+    // async fn asd() {}
 }
 
 pub async fn run_robot_service(port: u16) {

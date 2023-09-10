@@ -77,7 +77,7 @@ export class State {
             this.scene.children[0] = g;
         }
         this.orbitControls = orbitControls;
-        this.controlsWs = new WebSocket("ws://localhost:8000/controlsWs");
+        this.controlsWs = new WebSocket("ws://localhost:8000/controlWs");
         this.controlsWs.onmessage = (ev: MessageEvent<string>) => {
             let control: Control = JSON.parse(ev.data);
             dispatchEvent(new PointerEvent("pointerdown", {
