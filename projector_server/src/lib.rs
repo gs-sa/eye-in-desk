@@ -7,7 +7,8 @@ pub mod backend;
 use backend::{Command, CommandResult, DrawObject};
 use rpc::projector_service_server::{ProjectorService, ProjectorServiceServer};
 use rpc::{
-    DrawCirclesRequest, DrawRequest, DrawTextsRequest, GetDrawableSizeRequest, SizeResponse,
+    DrawCirclesRequest, DrawLinesRequest, DrawRectanglesRequest, DrawRequest, DrawTextsRequest,
+    GetDrawableSizeRequest, SizeResponse,
 };
 use std::net::SocketAddr;
 use tokio::sync::broadcast::{channel, Sender};
@@ -98,8 +99,50 @@ impl ProjectorService for DrawService {
                 x: circle.x,
                 y: circle.y,
                 radius: circle.radius,
+                fill: circle.fill,
             });
         });
+        let response = Response::new(DrawResponse { success: true });
+        Ok(response)
+    }
+
+    async fn draw_lines(
+        &self,
+        request: Request<DrawLinesRequest>,
+    ) -> Result<Response<DrawResponse>, Status> {
+        let mut objs = self.objects.lock().await;
+        request.into_inner().lines.into_iter().for_each(|line| {
+            objs.push(DrawObject::Line {
+                x1: line.x1,
+                y1: line.y1,
+                x2: line.x2,
+                y2: line.y2,
+                line_width: line.width,
+            });
+        });
+        let response = Response::new(DrawResponse { success: true });
+        Ok(response)
+    }
+
+    async fn draw_rectangles(
+        &self,
+        request: Request<DrawRectanglesRequest>,
+    ) -> Result<Response<DrawResponse>, Status> {
+        let mut objs = self.objects.lock().await;
+        request
+            .into_inner()
+            .rectangles
+            .into_iter()
+            .for_each(|rect| {
+                objs.push(DrawObject::Rectangle {
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    fill: rect.fill,
+                    line_width: rect.line_width,
+                });
+            });
         let response = Response::new(DrawResponse { success: true });
         Ok(response)
     }
@@ -127,6 +170,6 @@ pub async fn run_projector_back_end(grpc_port: u16) {
             .await
             .unwrap()
     };
-    
+
     futures::future::join(future1, future2).await;
 }

@@ -31,13 +31,25 @@ pub enum DrawObject {
         x: f32,
         y: f32,
         radius: f32,
+        fill: bool,
     },
-    // Rectangle {
-    //     x: f32,
-    //     y: f32,
-    //     width: f32,
-    //     height: f32,
-    // },
+
+    Line {
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        line_width: f32,
+    },
+
+    Rectangle {
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        fill: bool,
+        line_width: f32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -174,6 +186,7 @@ fn draw_json() {
         x: 1.0,
         y: 2.0,
         radius: 3.0,
+        fill: true,
     };
     let vec = vec![a, b, c];
     let json = serde_json::to_string(&vec).unwrap();
