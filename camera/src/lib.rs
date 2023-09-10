@@ -67,7 +67,7 @@ impl Camera for CvCamera {
             .find(|c| c.index().as_index().unwrap() == index)
             .unwrap();
         let format =
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
         let cam = NativeCam::with_backend(cam_info.index().clone(), format, api).unwrap();
         Self { debug: false, cam }
     }
@@ -82,7 +82,7 @@ impl Camera for CvCamera {
         let mut parameters = DetectorParameters::create().unwrap();
         // parameters.set_adaptive_thresh_constant(val)
         parameters.set_adaptive_thresh_win_size_max(40);
-        parameters.set_adaptive_thresh_win_size_min(20);
+        parameters.set_adaptive_thresh_win_size_min(10);
         // parameters.set_adaptive_thresh_win_size_step(val)
         let len = (self.cam.resolution().width() as usize)
             * (self.cam.resolution().height() as usize)
