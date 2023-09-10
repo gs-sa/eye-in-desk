@@ -5,6 +5,7 @@ package robot;
 service RobotService {
     rpc GetRobotInfo (GetRobotInfoRequest) returns (GetRobotInfoResponse) {}
     rpc SetRobotTarget (SetRobotTargetRequest) returns (SetRobotTargetResponse);
+    rpc SetRobotMode (SetRobotModeRequest) returns (SetRobotModeResponse);
 }
 
 message GetRobotInfoRequest {}
@@ -19,3 +20,8 @@ message SetRobotTargetRequest {
 }
 
 message SetRobotTargetResponse {}
+message SetRobotModeRequest {
+    int32 Mode = 1;
+}
+
+message SetRobotModeResponse {}

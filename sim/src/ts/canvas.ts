@@ -16,18 +16,26 @@ interface objectsResp {
     objects: string[]
 }
 
+interface Control {
+    rotate_left: number,
+    rotate_up: number,
+}
+
 export class State {
     renderer: WebGLRenderer
     scene: Scene
     camera: PerspectiveCamera
     robot: URDFRobot
+    orbitControls: OrbitControls
     jointsWs: WebSocket
     primitiveWs: WebSocket
+    controlsWs: WebSocket
     obj_map: Map<number, Group>
     constructor(renderer: WebGLRenderer,
         scene: Scene,
         camera: PerspectiveCamera,
         robot: URDFRobot,
+        orbitControls: OrbitControls,
         obj_map: Map<number, Group>
     ) {
         this.renderer = renderer;
@@ -68,6 +76,27 @@ export class State {
             }
             this.scene.children[0] = g;
         }
+        this.orbitControls = orbitControls;
+        this.controlsWs = new WebSocket("ws://localhost:8000/controlsWs");
+        this.controlsWs.onmessage = (ev: MessageEvent<string>) => {
+            let control: Control = JSON.parse(ev.data);
+            dispatchEvent(new PointerEvent("pointerdown", {
+                pointerId: 1,
+                pointerType: "mouse",
+                clientX: 0,
+                clientY: 0,
+            }));
+            dispatchEvent(new PointerEvent("pointermove", {
+                pointerId: 1,
+                pointerType: "mouse",
+                clientX: -control.rotate_left,
+                clientY: -control.rotate_up,
+            }));
+            dispatchEvent(new PointerEvent("pointerup", {
+                pointerId: 1,
+                pointerType: "mouse",
+            }));
+        };
         this.obj_map = obj_map;
     }
     render() {
@@ -99,8 +128,8 @@ export async function initState(container: HTMLDivElement) {
 
     // Perspective Camera & settings
     let camera = new PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.001, 100);
-    camera.position.set(0.64 - 0.225, 1.5, 1.);
-    camera.lookAt(0.64 - 0.225, 0.3, 0);
+
+    // camera.lookAt(0.64 - 0.225, 0.3, 0);
 
     // AmbientLight
     let l1 = new AmbientLight(0xFFFFFF, 1);
@@ -152,14 +181,16 @@ export async function initState(container: HTMLDivElement) {
     // g.position.set(0.5, 0.2, 0);
     // g.rotateZ(Math.PI / 2);
 
-    // new OrbitControls(camera, renderer.domElement)
-    
+    let oc = new OrbitControls(camera, renderer.domElement);
+    oc.target.set(0.5, 0, 0);
+    camera.position.set(0.5, 1.5, 1.5);
+    oc.update();
     // urdf loader
     let loader = new URDFLoader();
     loader.load("./Panda/panda.urdf", (robot) => {
         robot.rotation.set(-90 / 360 * 2 * Math.PI, 0, 0);
         scene.add(robot);
-        state = new State(renderer, scene, camera, robot, obj_map);
+        state = new State(renderer, scene, camera, robot, oc, obj_map);
         state.render();
 
     }, () => { }, () => { console.log("error") }, { packages: "./Panda" });
