@@ -202,13 +202,7 @@ async fn eye_in_desk_draw() {
 #[tokio::test]
 async fn eye_in_desk_update_virtaul_objects() {
     let mut eid = EyeInDesk::default_connect().await;
-    let objects = vec![Object {
-        x: 100.0,
-        y: 0.0,
-        id: 0,
-        z: 0.0,
-        rot: 0.0,
-    }];
+    let objects = vec![Object {x:100.0,y:0.0,id:0,z:0.0,rot:0.0, scale: 1. }];
     eid.update_virtual_objects(objects).await.unwrap();
 }
 

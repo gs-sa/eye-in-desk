@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { init_canvas, draw_aruco, draw_text, draw_circle } from "./ts/canvas";
+import { init_canvas, draw_aruco, draw_text, draw_circle,draw_line,draw_rect } from "./ts/canvas";
 const canvas = ref<HTMLCanvasElement | null>(null);
 let ctx: CanvasRenderingContext2D;
 // let json = '[{"Aruco":{"x":10.0,"y":20.0,"size":100.0}},{"Text":{"text":"Hello","x":100.0,"y":20.0,"size":2.0}},{"Circle":{"x":200.0,"y":100.0,"radius":50.0}}]';
@@ -39,6 +39,12 @@ function redraw(data: string) {
         break;
       case "Circle":
         draw_circle(ctx, obj.Circle)
+        break;
+      case "Line":
+        draw_line(ctx, obj.Line)
+        break;
+      case "Rectangle":
+        draw_rect(ctx, obj.Rectangle)
         break;
       default:
         break;
