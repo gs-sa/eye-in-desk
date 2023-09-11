@@ -8,22 +8,20 @@ onMounted(async () => {
   }
 })
 
-const toFullscreen = () => {
-  (container.value as HTMLDivElement).requestFullscreen();
-  (container.value as HTMLDivElement).onfullscreenchange = () => {
-    (container.value as HTMLDivElement).style.cursor = (container.value as HTMLDivElement).style.cursor === "" ? "none" : "";
+const control = () => {
+  if (state) {
+    state.renderer.domElement.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, clientX: 100, clientY: 100, pointerType: "mouse" }))
+    state.renderer.domElement.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, clientX: 100, clientY: 100, pointerType: "mouse" }))
+    state.renderer.domElement.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, clientX: 105, clientY: 105, pointerType: "mouse" }))
+    state.renderer.domElement.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, clientX: 100, clientY: 100, pointerType: "mouse" }))
   }
-}
-
-const openWindow = () => {
-  let w = window.open("http://localhost:5173/", '_blank', 'left=100,top=50,width=830,height=750',) as Window;
 }
 
 </script>
 
 <template>
   <!-- <div id="info">
-    <button @click="toFullscreen">fullscreen</button>
+    <button @click="control">control</button>
   </div> -->
   <div ref="container"></div>
 </template>

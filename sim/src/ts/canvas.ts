@@ -80,19 +80,20 @@ export class State {
         this.controlsWs = new WebSocket("ws://localhost:8000/controlWs");
         this.controlsWs.onmessage = (ev: MessageEvent<string>) => {
             let control: Control = JSON.parse(ev.data);
-            dispatchEvent(new PointerEvent("pointerdown", {
+
+            this.renderer.domElement.dispatchEvent(new PointerEvent("pointerdown", {
                 pointerId: 1,
                 pointerType: "mouse",
-                clientX: 0,
-                clientY: 0,
+                clientX: 100,
+                clientY: 100,
             }));
-            dispatchEvent(new PointerEvent("pointermove", {
-                pointerId: 1,
-                pointerType: "mouse",
-                clientX: -control.rotate_left,
-                clientY: -control.rotate_up,
-            }));
-            dispatchEvent(new PointerEvent("pointerup", {
+            this.renderer.domElement.dispatchEvent(new PointerEvent("pointermove", { 
+                pointerId: 1, clientX: 100, clientY: 100, pointerType: "mouse" 
+            }))
+            this.renderer.domElement.dispatchEvent(new PointerEvent("pointermove", { 
+                pointerId: 1, clientX: 100 - control.rotate_left, clientY: 100 - control.rotate_up, pointerType: "mouse" 
+            }))
+            this.renderer.domElement.dispatchEvent(new PointerEvent("pointerup", {
                 pointerId: 1,
                 pointerType: "mouse",
             }));
