@@ -38,7 +38,7 @@ struct RobotServ {
 }
 
 #[derive(Clone)]
-pub enum RobotMode {
+enum RobotMode {
     Target,
     Drag,
 }
